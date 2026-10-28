@@ -3,11 +3,33 @@
 import argparse
 import fcntl
 import json
+import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
 import time
+
+
+def ensure_awake():
+    # shortcut: check at startup; add periodic checks if existing awake sessions can end mid-course.
+    if sys.platform != 'darwin':
+        return
+    try:
+        assertions = subprocess.check_output(['pmset', '-g', 'assertions'], text=True, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.CalledProcessError):
+        print('KEEP_AWAKE: could not inspect power assertions; no extra caffeinate started', flush=True)
+        return
+    active = re.search(r'^\s*pid \d+\((?:Amphetamine|caffeinate)\):.*\b(?:PreventUserIdleSystemSleep|PreventSystemSleep|NoIdleSleepAssertion)\b', assertions, re.MULTILINE)
+    if active:
+        print('KEEP_AWAKE: Amphetamine or caffeinate already active; reusing it', flush=True)
+        return
+    try:
+        subprocess.Popen(['caffeinate', '-i', '-w', str(os.getpid())], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print('KEEP_AWAKE: started caffeinate for this watcher', flush=True)
+    except OSError:
+        print('KEEP_AWAKE: caffeinate could not start', flush=True)
 
 
 def main():
@@ -29,6 +51,7 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             parser.exit(1, 'A watcher already owns this state directory.\n')
+        ensure_awake()
         source = '\n'.join(Path(__file__).with_name(name).read_text() for name in ('dialogs.mjs', 'playlist.mjs', 'watch.mjs'))
         config = json.dumps({'space': args.space, 'page': args.page, 'playlistPage': args.playlist_page, 'state': str(state)})
         with (state / 'runner.log').open('a') as log:

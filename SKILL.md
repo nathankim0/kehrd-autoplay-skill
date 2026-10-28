@@ -20,20 +20,22 @@ description: Use ego-browser to advance all remaining KEHRD training lessons and
 
 **기본 동작은 자동 에이전트를 이용한 남은 교육 전체 진행이다.** “교육 진행해줘”만으로 남은 차시·과정과 필요한 문제·평가를 이어간다. “전부”라는 추가 문구나 자동 에이전트 활성화를 위한 재확인을 요구하지 않는다. 사용자가 특정 과정이나 현재 차시로 범위를 제한한 경우에만 그 범위를 따른다.
 
-SKILL.md가 있는 폴더에서 다음처럼 실행한다. 기본 `p1`은 현재 과정의 상세 페이지, `p2`는 플레이어다. 공간 ID와 페이지는 실제 관찰값으로 바꾸고 상태 폴더는 교육 세션별로 새로 정한다. `python3`, `ego-browser`와 로그인된 Codex CLI가 필요하며 macOS에서는 `caffeinate`가 절전을 방지한다.
+SKILL.md가 있는 폴더에서 다음처럼 실행한다. 기본 `p1`은 현재 과정의 상세 페이지, `p2`는 플레이어다. 공간 ID와 페이지는 실제 관찰값으로 바꾸고 상태 폴더는 교육 세션별로 새로 정한다. `python3`, `ego-browser`와 로그인된 Codex CLI가 필요하다.
 
 ```bash
-caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 --state-dir /private/tmp/kehrd-session
+python3 scripts/watch.py --space 1 --page p2 --state-dir /private/tmp/kehrd-session
 ```
 
-macOS 이외에는 `caffeinate -dimsu`만 빼고 실행한다. 기존 감시기가 있으면 먼저 소유 프로세스를 확인해 중복 실행을 정리한다. 이 감시기는 같은 상태 폴더에서 중복 실행되지 않는다.
+macOS에서는 스크립트가 `pmset -g assertions`로 **실제로 활성화된 Amphetamine 또는 기존 caffeinate의 시스템 절전 방지**를 확인하고, 이미 있으면 caffeinate를 중복 실행하지 않는다. 앱이 실행 중인 것만으로 판단하지 않는다. 없을 때만 `caffeinate -i -w <감시기 PID>`를 실행해 감시기가 끝날 때 함께 종료되도록 한다. 이 기능은 화면 자동 잠금 설정을 변경하지 않는다. 절전 상태 확인에 실패하면 중복을 피하기 위해 추가 실행하지 않고 상태를 알린다. 명령 앞에 caffeinate를 다시 붙이지 않는다.
+
+기존 감시기가 있으면 먼저 소유 프로세스를 확인해 중복 실행을 정리한다. 이 감시기는 같은 상태 폴더에서 중복 실행되지 않는다. 이미 Amphetamine이 작동하는데 이 작업이 띄운 caffeinate도 남아 있다면 교육 감시 프로세스와의 PID 관계를 확인한 뒤 **그 caffeinate만** 종료한다. 다른 작업의 절전 방지 프로세스는 종료하지 않는다.
 
 ### 남은 차시·과정 전체 진행
 
 옵션을 지정하지 않아도 **전체 과정 모드**로 실행된다. 현재 로그인한 내강의실 목록에서 남은 과정과 순서를 확인하고 상세 페이지를 별도 탭에 유지한다. 사용자가 범위를 제한했고 목록이 그보다 넓으면 필요한 과정만 진행하도록 에이전트가 전환을 관리한다. 상세 페이지가 `p1`이 아니라면 `--playlist-page`로 관찰한 라벨을 지정한다.
 
 ```bash
-caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 \
+python3 scripts/watch.py --space 1 --page p2 \
   --state-dir /private/tmp/kehrd-all-session
 ```
 
@@ -50,7 +52,7 @@ caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 \
 **자동 에이전트 실행은 기본으로 켜져 있다.** 별도 `--auto-agent` 옵션이나 추가 허용 질문 없이 실행한다. 기존 `--auto-agent` 명령도 계속 지원한다. 사용자가 자동 호출을 끄라고 명시한 경우에만 `--no-auto-agent`를 사용하며, 이때는 주 에이전트가 문제·평가를 계속 처리해야 한다.
 
 ```bash
-caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 \
+python3 scripts/watch.py --space 1 --page p2 \
   --state-dir /private/tmp/kehrd-all-session
 ```
 
@@ -89,4 +91,4 @@ caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 \
 
 100%는 타이머가 없어도 먼저 감지한다. 단일 차시는 완료 알림 후 종료하고, 전체 모드에서는 남은 과정으로 이어간다. `DONE` 파일의 snapshot으로 요청 범위의 완료 상태를 보고하고, 사용자가 결과를 볼 탭은 남긴다. 알림 실패는 `runner.log`에 기록되므로 알림이 실제 표시됐다고 단정하지 않는다.
 
-개발 검증: `node scripts/test-watch.mjs`, `node scripts/test-playlist.mjs`, `node scripts/test-dialogs.mjs`, `python3 scripts/test-watch.py`.
+개발 검증: `node scripts/test-watch.mjs`, `node scripts/test-playlist.mjs`, `node scripts/test-dialogs.mjs`, `python3 scripts/test-watch.py`, `python3 scripts/test-awake.py`.

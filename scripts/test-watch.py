@@ -28,7 +28,7 @@ for extra, expected in [([], 'p1'), (['--current-lesson-only'], None), (['--play
             (state / 'QUESTION').unlink()
 
         argv = ['watch.py', '--space', '1', '--state-dir', str(state), '--no-auto-agent', *extra]
-        with patch.object(sys, 'argv', argv), patch('subprocess.run', side_effect=run), patch('time.sleep', side_effect=sleep), patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()) as output:
+        with patch.object(sys, 'argv', argv), patch.object(sys, 'platform', 'linux'), patch('subprocess.run', side_effect=run), patch('time.sleep', side_effect=sleep), patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()) as output:
             assert main() == 0
         assert len(calls) == 2, 'same runner must resume after handoff'
         assert output.getvalue().count('ACTION_REQUIRED') == 1
@@ -54,7 +54,7 @@ for extra, resolves in [([], True), ([], False), (['--auto-agent'], True)]:
             return subprocess.CompletedProcess(command, 0)
 
         argv = ['watch.py', '--space', '1', '--state-dir', str(state), *extra]
-        with patch.object(sys, 'argv', argv), patch('subprocess.run', side_effect=run), patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()):
+        with patch.object(sys, 'argv', argv), patch.object(sys, 'platform', 'linux'), patch('subprocess.run', side_effect=run), patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()):
             assert main() == (0 if resolves else 2)
         assert len(agents) == 1, 'do not repeatedly bill for an unresolved question'
         assert (state / 'STOP').exists() is not resolves

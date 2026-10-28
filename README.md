@@ -104,19 +104,20 @@ flowchart LR
 아래는 로그인과 플레이어 준비를 마친 뒤 감시기만 직접 실행하는 방법입니다. 처음 사용한다면 위 스킬 호출 방식으로 시작하세요. 저장소 폴더에서 `--space`와 `--page`를 실제 열린 플레이어 값으로 바꾸고, 상태 폴더는 교육 세션마다 새로 지정합니다.
 
 ```bash
-# macOS: 감시가 실행되는 동안 절전 방지
-caffeinate -dimsu python3 scripts/watch.py \
+python3 scripts/watch.py \
   --space 1 --page p2 --state-dir /private/tmp/kehrd-session
 ```
 
-Linux에서는 `caffeinate -dimsu`를 빼고, 상태 폴더를 `/tmp/kehrd-session` 등으로 지정합니다. Windows는 지원하지 않습니다.
+macOS에서는 시작할 때 활성화된 Amphetamine 또는 기존 caffeinate의 시스템 절전 방지를 확인해 재사용합니다. 없을 때만 감시기 수명 동안 `caffeinate -i`를 실행합니다. 명령 앞에 caffeinate를 별도로 붙일 필요가 없으며, 화면 자동 잠금 설정은 변경하지 않습니다. 절전 상태를 확인하지 못하면 추가 실행을 생략하고 상태를 출력합니다. 기존 앱을 재사용한다면 교육 중에도 해당 절전 방지 세션을 유지하세요.
+
+Linux에서는 상태 폴더를 `/tmp/kehrd-session` 등으로 지정합니다. Windows는 지원하지 않습니다.
 
 **전체 진행이 기본값**입니다. 상세 페이지는 기본 `p1`이며, 다른 탭이라면 `--playlist-page p3`처럼 지정합니다. 특정 과정만 요청했다면 에이전트가 그 범위 안에서 전환을 관리합니다.
 
 **현재 차시만 진행**하려면 다음 옵션을 명시합니다.
 
 ```bash
-caffeinate -dimsu python3 scripts/watch.py \
+python3 scripts/watch.py \
   --space 1 --page p2 --current-lesson-only \
   --state-dir /private/tmp/kehrd-one-lesson
 ```
@@ -128,7 +129,7 @@ caffeinate -dimsu python3 scripts/watch.py \
 자동 에이전트는 기본값이므로 다음 명령만으로 실행됩니다. 로그인된 Codex CLI가 필요하며, CLI의 사용량이 적용됩니다.
 
 ```bash
-caffeinate -dimsu python3 scripts/watch.py \
+python3 scripts/watch.py \
   --space 1 --page p2 --state-dir /private/tmp/kehrd-all-session
 ```
 
@@ -162,6 +163,7 @@ node scripts/test-watch.mjs
 node scripts/test-playlist.mjs
 node scripts/test-dialogs.mjs
 python3 scripts/test-watch.py
+python3 scripts/test-awake.py
 python3 -m py_compile scripts/watch.py
 ```
 
@@ -179,6 +181,7 @@ python3 -m py_compile scripts/watch.py
 | [scripts/test-playlist.mjs](scripts/test-playlist.mjs) | 모의 내강의실로 전체 진행 동작 검증 |
 | [scripts/test-dialogs.mjs](scripts/test-dialogs.mjs) | 제출 확인·정답 알림 연속 처리 검증 |
 | [scripts/test-watch.py](scripts/test-watch.py) | 문제 처리 중 감시 유지·자동 재개 검증 |
+| [scripts/test-awake.py](scripts/test-awake.py) | Amphetamine·caffeinate 절전 방지 중복 실행 방지 검증 |
 
 플레이어의 화면 구조가 바뀌면 파싱과 문제 감지를 조정해야 합니다. 영상·캔버스 내부의 문제는 재생 정지 시 에이전트가 스크린샷으로 확인합니다.
 
