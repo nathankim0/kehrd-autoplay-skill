@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import uuid
+import agent_accounts
 
 
 def ensure_awake():
@@ -60,6 +61,10 @@ def main():
         with (state / 'runner.log').open('a') as log:
             last_question = None
             agent_attempts = 0
+            accounts = agent_accounts.discover_accounts() if args.auto_agent else []
+            if args.auto_agent:
+                print('AGENT_ACCOUNTS: ' + ', '.join(f'{provider}:{profile.name}' for provider, profile in accounts), flush=True)
+            limited_until = {}
             while not any((state / name).exists() for name in ('DONE', 'STOP')):
                 if (state / 'QUESTION').exists():
                     try:
@@ -70,14 +75,28 @@ def main():
                         print(f'ACTION_REQUIRED: {state / "QUESTION"}', flush=True)
                         last_question = question
                     if args.auto_agent:
+                        if not accounts:
+                            (state / 'STOP').write_text('No logged-in Codex or Claude account is available')
+                            continue
+                        ready = [i for i in range(len(accounts)) if limited_until.get(i, 0) <= time.time()]
+                        if not ready:
+                            print('AGENTS_LIMITED: waiting for an account to become available', flush=True)
+                            time.sleep(min(60, max(1, min(limited_until.values()) - time.time())))
+                            continue
+                        account_index = ready[0]
+                        provider, profile = accounts[account_index]
                         agent_attempts += 1
                         context = json.dumps({'space': args.space, 'page': args.page, 'classroom': args.playlist_page, 'state': str(state), 'attempt': agent_attempts}, ensure_ascii=False)
                         prompt = Path(__file__).with_name('agent-task.md').read_text() + '\nSession: ' + context
-                        command = ['codex', '--no-daemon', '-a', 'never', '-c', 'model_reasoning_effort="low"', 'exec', '--ignore-user-config', '--sandbox', 'danger-full-access', '--model', 'gpt-6.1-terra', '--skip-git-repo-check', '--cd', str(Path(__file__).resolve().parent.parent), '--output-last-message', str(state / 'agent-last-message.txt'), '-']
-                        print('AGENT_START: gpt-6.1-terra', flush=True)
+                        print(f'AGENT_START: {provider} {profile.name}', flush=True)
                         try:
-                            with (state / 'agent.log').open('a') as agent_log:
-                                agent = subprocess.run(command, input=prompt, text=True, stdout=agent_log, stderr=agent_log, timeout=600)
+                            agent, limited = agent_accounts.run_account(accounts[account_index], prompt, state)
+                            if limited and (state / 'QUESTION').exists() and not (state / 'STOP').exists():
+                                # shortcut: reset timestamps vary by CLI; retry exhausted profiles after 15 minutes.
+                                limited_until[account_index] = time.time() + 900
+                                print(f'AGENT_LIMIT: {provider} {profile.name}; switching account', flush=True)
+                                agent_attempts = 0
+                                continue
                             failure = f'Agent exited {agent.returncode}' if agent.returncode else None
                         except OSError as error:
                             (state / 'STOP').write_text(str(error))

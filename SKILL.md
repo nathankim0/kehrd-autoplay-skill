@@ -56,7 +56,11 @@ python3 scripts/watch.py --space 1 --page p2 \
   --state-dir /private/tmp/kehrd-all-session
 ```
 
-평소 영상 재생은 스크립트만 감시한다. `QUESTION` 발생 시 **GPT-6.1 Terra (`gpt-6.1-terra`), reasoning low**를 한 번 호출해 [scripts/agent-task.md](scripts/agent-task.md)의 제한된 복구 작업을 맡긴다. 모델을 임의로 변경하지 않는다. 개인 CLI 설정의 불필요한 MCP 로딩을 피하도록 해당 워커만 `--ignore-user-config`로 실행하며 로그인 인증은 그대로 사용한다. 작업은 제출 확인·결과 알림·다음 영상 실제 재생 확인까지이며, 복구 후 종료하면 부모 감시기가 이어간다. 워커는 새 감시기나 다른 에이전트를 중첩 실행하지 않는다. 자동 워커가 실행 중이면 주 에이전트가 같은 브라우저를 동시에 조작하지 않는다.
+평소 영상 재생은 스크립트만 감시한다. `QUESTION` 발생 시 Codex의 **GPT-6.1 Terra (`gpt-6.1-terra`), reasoning low**를 호출해 [scripts/agent-task.md](scripts/agent-task.md)의 제한된 복구 작업을 맡긴다. Codex 모델을 임의로 변경하지 않는다. 개인 CLI 설정의 불필요한 MCP 로딩을 피하도록 해당 워커만 `--ignore-user-config`로 실행하며 로그인 인증은 그대로 사용한다. 작업은 제출 확인·결과 알림·다음 영상 실제 재생 확인까지이며, 복구 후 종료하면 부모 감시기가 이어간다. 워커는 새 감시기나 다른 에이전트를 중첩 실행하지 않는다. 자동 워커가 실행 중이면 주 에이전트가 같은 브라우저를 동시에 조작하지 않는다.
+
+계정은 현재 `CODEX_HOME`을 우선하고 `~/.codex`, `~/.codex2` 같은 숫자 접미사 폴더의 로그인 상태를 확인해 순회한다. 그다음 로그인된 Claude CLI를 **Sonnet, effort low**로 사용한다. Claude는 기본 로그인과 `CLAUDE_CONFIG_DIR`의 로그인 네임스페이스가 다를 수 있으므로 기본 키체인 로그인을 유지한다. 계정 선택은 자식 프로세스 환경에만 적용하며 인증 파일을 복사하거나 전역 계정 설정을 덮어쓰지 않는다. 사용자가 우선 계정을 지정하면 해당 `CODEX_HOME`을 감시기 환경에 지정해 실행하고 로그인 상태와 `AGENT_ACCOUNTS`의 순서를 확인한다.
+
+실제 CLI의 사용 한도·quota 오류를 확인했을 때만 다음 계정으로 이어받는다. 한도 오류가 난 계정은 15분 동안 재호출하지 않고, 전부 소진되면 감시기를 종료하지 않고 재확인 시점까지 대기한다. 잔여 토큰이 있다는 사실을 로그인 성공만으로 단정하지 않는다. 계정이 바뀌어도 같은 TaskSpace·상태 폴더를 사용하며 이미 제출된 평가를 반복하지 않는다. 인증정보·이메일·한도 관련 개인 데이터는 저장소에 넣지 않는다. 인증 만료·사용자 제어·일반 브라우저 오류를 사용 한도로 오인해 다른 계정으로 우회하지 않는다.
 
 첫 자동 호출에서 `AGENT_START` → `AGENT_RESOLVED` → `progress.log` 갱신까지 실제로 확인한 후에만 백그라운드 자동 처리가 동작한다고 보고한다. 이후 주 대화가 종료되어도 실행 중인 감시기와 워커가 처리를 이어간다. `--no-auto-agent`를 지정하고 주 에이전트까지 종료하면 문제·평가는 스스로 풀리지 않는다.
 
@@ -95,4 +99,4 @@ CDP 오류 등으로 워커가 종료되거나 문제를 남기면 현재 브라
 
 100%는 타이머가 없어도 먼저 감지한다. 단일 차시는 완료 알림 후 종료하고, 전체 모드에서는 남은 과정으로 이어간다. `DONE` 파일의 snapshot으로 요청 범위의 완료 상태를 보고하고, 사용자가 결과를 볼 탭은 남긴다. 알림 실패는 `runner.log`에 기록되므로 알림이 실제 표시됐다고 단정하지 않는다.
 
-개발 검증: `node scripts/test-watch.mjs`, `node scripts/test-playlist.mjs`, `node scripts/test-dialogs.mjs`, `python3 scripts/test-watch.py`, `python3 scripts/test-awake.py`.
+개발 검증: `node scripts/test-watch.mjs`, `node scripts/test-playlist.mjs`, `node scripts/test-dialogs.mjs`, `python3 scripts/test-watch.py`, `python3 scripts/test-awake.py`, `python3 scripts/test-agent-accounts.py`.
