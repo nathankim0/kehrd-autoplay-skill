@@ -1,4 +1,4 @@
 interface:
   display_name: "KEHRD 교육 자동 진행"
-  short_description: "KEHRD 남은 차시·과정 순차 진행, 문제·평가 처리와 전체 완료 알림"
-  default_prompt: "$kehrd-autoplay로 남은 KEHRD 교육을 전부 진행해줘. 중간 문제와 필요한 차시 평가도 처리하고, 다음 차시와 과정으로 이어가 전체 수료 후 알려줘."
+  short_description: "기본으로 KEHRD 남은 교육 전체 진행, 문제·평가 처리와 전체 수료 알림"
+  default_prompt: "$kehrd-autoplay로 교육 진행해줘."

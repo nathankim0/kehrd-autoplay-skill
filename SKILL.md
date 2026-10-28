@@ -1,6 +1,6 @@
 ---
 name: kehrd-autoplay
-description: Use ego-browser to advance KEHRD training videos, handle requested quizzes and lesson assessments, and continue remaining lessons and courses when requested. Use for 한국이러닝인재개발원, KEHRD 교육 자동 진행, or 남은 법정교육 전부 진행 requests.
+description: Use ego-browser to advance all remaining KEHRD training lessons and courses by default, handling requested quizzes and lesson assessments until completion. Use for 한국이러닝인재개발원, KEHRD 교육 자동 진행, or 법정교육 진행 requests.
 ---
 
 # KEHRD 교육 자동 진행
@@ -9,7 +9,9 @@ description: Use ego-browser to advance KEHRD training videos, handle requested 
 
 ## 실행
 
-SKILL.md가 있는 폴더에서 다음처럼 실행한다. 공간 ID와 페이지는 실제 관찰값으로 바꾸고 상태 폴더는 교육 세션별로 새로 정한다. `python3`, `ego-browser`가 필요하며 macOS에서는 `caffeinate`가 절전을 방지한다.
+**기본 동작은 남은 교육 전체 진행이다.** “교육 진행해줘”만으로 남은 차시·과정과 필요한 문제·평가를 이어간다. “전부”라는 추가 문구나 재확인을 요구하지 않는다. 사용자가 특정 과정이나 현재 차시로 범위를 제한한 경우에만 그 범위를 따른다.
+
+SKILL.md가 있는 폴더에서 다음처럼 실행한다. 기본 `p1`은 현재 과정의 상세 페이지, `p2`는 플레이어다. 공간 ID와 페이지는 실제 관찰값으로 바꾸고 상태 폴더는 교육 세션별로 새로 정한다. `python3`, `ego-browser`가 필요하며 macOS에서는 `caffeinate`가 절전을 방지한다.
 
 ```bash
 caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 --state-dir /private/tmp/kehrd-session
@@ -19,11 +21,11 @@ macOS 이외에는 `caffeinate -dimsu`만 빼고 실행한다. 기존 감시기�
 
 ### 남은 차시·과정 전체 진행
 
-사용자가 “남은 교육 전부”, “100%면 다음 차시/과정도 계속”이라고 요청하면 **전체 과정 모드**를 사용한다. 현재 로그인한 내강의실 목록에서 요청한 과정과 순서를 확인하고 상세 페이지를 별도 탭에 유지한다. 목록이 요청 범위보다 넓으면 필요한 과정만 진행하도록 에이전트가 전환을 관리한다. 아래 자동 전체 모드는 목록 전체가 승인된 범위일 때 사용한다.
+옵션을 지정하지 않아도 **전체 과정 모드**로 실행된다. 현재 로그인한 내강의실 목록에서 남은 과정과 순서를 확인하고 상세 페이지를 별도 탭에 유지한다. 사용자가 범위를 제한했고 목록이 그보다 넓으면 필요한 과정만 진행하도록 에이전트가 전환을 관리한다. 상세 페이지가 `p1`이 아니라면 `--playlist-page`로 관찰한 라벨을 지정한다.
 
 ```bash
 caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 \
-  --playlist-page p1 --state-dir /private/tmp/kehrd-all-session
+  --state-dir /private/tmp/kehrd-all-session
 ```
 
 `p1`은 현재 과정의 상세 페이지, `p2`는 재생 중인 플레이어 예시다. 공간·페이지 값은 관찰해서 정한다. 전체 모드는 **차시 100% 및 마지막 페이지 재생 완료 → 학습종료 → 상세 페이지 새로고침 → 다음 미완료 차시 → 다음 미수료 과정**으로 이어간다. 진도율이 먼저 100%로 표시되어도 남은 영상을 끝까지 재생한다. 이미 수료한 과정은 건너뛰고, 남은 과정이 전부 수료로 확인될 때만 `DONE`을 기록하고 완료 알림 후 종료한다. 새 플레이어 라벨은 `player.json`에 저장되어 다음 라운드에서 이어진다.
@@ -32,7 +34,9 @@ caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 \
 
 차시 평가가 필요하면 `QUESTION`으로 에이전트에게 제어가 돌아온다. 요청받은 평가라면 상세 페이지에서 해당 차시 평가를 펼쳐 지문과 보기를 읽고 답변·제출한다. 합격과 다음 차시 잠금 해제를 확인한 뒤 학습하기로 새 플레이어를 연다. 이때 `player.json`을 새 라벨로 갱신하고 `QUESTION`을 삭제한 뒤 같은 전체 과정 명령을 재실행한다. 단일 차시 모드에서 넘어온 기존 `DONE`은 해당 완료 기록을 보존하고 새 상태 폴더로 시작한다.
 
-**전체 과정 요청을 차시 100% 알림으로 끝내지 않는다.** 평가·문제·알 수 없는 화면에서는 에이전트가 계속 처리하고 재생을 이어간다. 에이전트가 실행 중이지 않으면 스크립트 단독으로 평가를 풀 수 없다는 한계는 명확히 설명한다. 로그인 링크·계정·수강 ID·답안·개인별 과정 목록은 로컬 상태 폴더에만 두고 저장소에는 넣지 않는다.
+**기본 실행을 차시 100% 알림으로 끝내지 않는다.** 평가·문제·알 수 없는 화면에서는 에이전트가 계속 처리하고 재생을 이어간다. 에이전트가 실행 중이지 않으면 스크립트 단독으로 평가를 풀 수 없다는 한계는 명확히 설명한다. 로그인 링크·계정·수강 ID·답안·개인별 과정 목록은 로컬 상태 폴더에만 두고 저장소에는 넣지 않는다.
+
+사용자가 명시적으로 현재 차시만 요청한 경우에만 `--current-lesson-only`를 추가한다. 이 옵션은 `--playlist-page`와 함께 사용할 수 없다.
 
 명령은 에이전트 턴을 유지하며 실행하고 도구의 세션 ID로 계속 관찰한다. `progress.log`에 상태가 기록된다. 정상 재생을 기다리며 사용자에게 간결한 진행 상황을 알린다. `DONE` 또는 `QUESTION` 파일이 생기면 감시 프로세스가 종료된다. 종료 코드 0은 완료, 2는 화면 확인 필요, 그 외는 실행 오류다. 오류를 무한 재시도하지 않는다.
 
@@ -45,7 +49,7 @@ caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 \
 3. 재생 정지라면 관찰한 재생 버튼을 사용한다. 대화상자는 내용을 읽고 처리한다. 사용자 제어 전환이나 공간 비활성화이면 중지하고 다시 권한을 빼앗지 않는다.
 4. 정상 화면으로 돌아온 것을 확인한 뒤 해당 상태 폴더의 `QUESTION` 파일만 삭제하고 같은 명령을 다시 실행한다. 문제 화면이 계속되면 재생 재개를 반복 클릭하지 않는다.
 
-기본 범위는 현재 차시의 진도율 100%까지다. 전체 진행을 요청받으면 위 전체 과정 모드로 남은 차시·과정과 필요한 평가까지 이어간다. 마지막 페이지에서도 진도 반영을 기다린다. 현재 사이트는 페이지별 최소 60초와 차시별 총 학습시간을 안내하므로 시간을 건너뛰거나 진도 데이터를 직접 수정하지 않는다.
+기본 범위는 남은 차시·과정 전체와 필요한 평가까지다. 현재 차시만 명시적으로 요청한 경우에만 100%에서 멈춘다. 마지막 페이지에서도 진도 반영을 기다린다. 현재 사이트는 페이지별 최소 60초와 차시별 총 학습시간을 안내하므로 시간을 건너뛰거나 진도 데이터를 직접 수정하지 않는다.
 
 ## 완료와 검증
 
