@@ -65,5 +65,3 @@ python3 scripts/watch.py --space 1 --page p2 --state-dir /tmp/kehrd-session
 </details>
 
 운영·복구·검증 절차는 [SKILL.md](SKILL.md), 구현과 테스트는 [scripts/](scripts/)를 참고하세요.
-
-대문: [KEHRD 아이콘](https://kehrd.com/img/favicon.ico) · [생성 프롬프트](assets/cover-prompt.txt)
