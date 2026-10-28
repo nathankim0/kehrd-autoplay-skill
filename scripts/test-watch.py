@@ -27,14 +27,14 @@ for extra, expected in [([], 'p1'), (['--current-lesson-only'], None), (['--play
             (state / 'player.json').write_text('{"page":"p5"}')
             (state / 'QUESTION').unlink()
 
-        argv = ['watch.py', '--space', '1', '--state-dir', str(state), *extra]
+        argv = ['watch.py', '--space', '1', '--state-dir', str(state), '--no-auto-agent', *extra]
         with patch.object(sys, 'argv', argv), patch('subprocess.run', side_effect=run), patch('time.sleep', side_effect=sleep), patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()) as output:
             assert main() == 0
         assert len(calls) == 2, 'same runner must resume after handoff'
         assert output.getvalue().count('ACTION_REQUIRED') == 1
 print('3 default-mode and continuous-handoff checks passed')
 
-for resolves in (True, False):
+for extra, resolves in [([], True), ([], False), (['--auto-agent'], True)]:
     with tempfile.TemporaryDirectory() as state:
         state = Path(state)
         (state / 'QUESTION').write_text('assessment needs attention')
@@ -53,9 +53,9 @@ for resolves in (True, False):
                 (state / 'DONE').write_text('completed')
             return subprocess.CompletedProcess(command, 0)
 
-        argv = ['watch.py', '--space', '1', '--state-dir', str(state), '--auto-agent']
+        argv = ['watch.py', '--space', '1', '--state-dir', str(state), *extra]
         with patch.object(sys, 'argv', argv), patch('subprocess.run', side_effect=run), patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()):
             assert main() == (0 if resolves else 2)
         assert len(agents) == 1, 'do not repeatedly bill for an unresolved question'
         assert (state / 'STOP').exists() is not resolves
-print('2 Terra invocation and failure-boundary checks passed')
+print('3 default Terra invocation, explicit enable, and failure-boundary checks passed')

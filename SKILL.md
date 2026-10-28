@@ -18,9 +18,9 @@ description: Use ego-browser to advance all remaining KEHRD training lessons and
 
 ## 실행
 
-**기본 동작은 남은 교육 전체 진행이다.** “교육 진행해줘”만으로 남은 차시·과정과 필요한 문제·평가를 이어간다. “전부”라는 추가 문구나 재확인을 요구하지 않는다. 사용자가 특정 과정이나 현재 차시로 범위를 제한한 경우에만 그 범위를 따른다.
+**기본 동작은 자동 에이전트를 이용한 남은 교육 전체 진행이다.** “교육 진행해줘”만으로 남은 차시·과정과 필요한 문제·평가를 이어간다. “전부”라는 추가 문구나 자동 에이전트 활성화를 위한 재확인을 요구하지 않는다. 사용자가 특정 과정이나 현재 차시로 범위를 제한한 경우에만 그 범위를 따른다.
 
-SKILL.md가 있는 폴더에서 다음처럼 실행한다. 기본 `p1`은 현재 과정의 상세 페이지, `p2`는 플레이어다. 공간 ID와 페이지는 실제 관찰값으로 바꾸고 상태 폴더는 교육 세션별로 새로 정한다. `python3`, `ego-browser`가 필요하며 macOS에서는 `caffeinate`가 절전을 방지한다.
+SKILL.md가 있는 폴더에서 다음처럼 실행한다. 기본 `p1`은 현재 과정의 상세 페이지, `p2`는 플레이어다. 공간 ID와 페이지는 실제 관찰값으로 바꾸고 상태 폴더는 교육 세션별로 새로 정한다. `python3`, `ego-browser`와 로그인된 Codex CLI가 필요하며 macOS에서는 `caffeinate`가 절전을 방지한다.
 
 ```bash
 caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 --state-dir /private/tmp/kehrd-session
@@ -47,16 +47,16 @@ caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 \
 
 ### 대화 종료 후에도 이어가는 자동 에이전트
 
-사용자가 별도 에이전트 자동 실행을 명시적으로 허용했다면 `--auto-agent`를 추가한다. 현재 세션에서 이미 허용한 경우 다시 묻지 않는다. 이 모드는 로그인된 Codex CLI가 필요하다.
+**자동 에이전트 실행은 기본으로 켜져 있다.** 별도 `--auto-agent` 옵션이나 추가 허용 질문 없이 실행한다. 기존 `--auto-agent` 명령도 계속 지원한다. 사용자가 자동 호출을 끄라고 명시한 경우에만 `--no-auto-agent`를 사용하며, 이때는 주 에이전트가 문제·평가를 계속 처리해야 한다.
 
 ```bash
 caffeinate -dimsu python3 scripts/watch.py --space 1 --page p2 \
-  --state-dir /private/tmp/kehrd-all-session --auto-agent
+  --state-dir /private/tmp/kehrd-all-session
 ```
 
 평소 영상 재생은 스크립트만 감시한다. `QUESTION` 발생 시 **GPT-6.1 Terra (`gpt-6.1-terra`), reasoning low**를 한 번 호출해 [scripts/agent-task.md](scripts/agent-task.md)의 제한된 복구 작업을 맡긴다. 모델을 임의로 변경하지 않는다. 개인 CLI 설정의 불필요한 MCP 로딩을 피하도록 해당 워커만 `--ignore-user-config`로 실행하며 로그인 인증은 그대로 사용한다. 작업은 제출 확인·결과 알림·다음 영상 실제 재생 확인까지이며, 복구 후 종료하면 부모 감시기가 이어간다. 워커는 새 감시기나 다른 에이전트를 중첩 실행하지 않는다. 자동 워커가 실행 중이면 주 에이전트가 같은 브라우저를 동시에 조작하지 않는다.
 
-첫 자동 호출에서 `AGENT_START` → `AGENT_RESOLVED` → `progress.log` 갱신까지 실제로 확인한 후에만 백그라운드 자동 처리가 동작한다고 보고한다. 이후 주 대화가 종료되어도 실행 중인 감시기와 워커가 처리를 이어간다. `--auto-agent` 없이 주 에이전트까지 종료하면 문제·평가는 스스로 풀리지 않는다.
+첫 자동 호출에서 `AGENT_START` → `AGENT_RESOLVED` → `progress.log` 갱신까지 실제로 확인한 후에만 백그라운드 자동 처리가 동작한다고 보고한다. 이후 주 대화가 종료되어도 실행 중인 감시기와 워커가 처리를 이어간다. `--no-auto-agent`를 지정하고 주 에이전트까지 종료하면 문제·평가는 스스로 풀리지 않는다.
 
 같은 문제를 해결하지 못했거나 CLI 호출 실패·10분 제한 초과라면 `STOP`과 `agent.log`에 이유를 남기고 무한 호출하지 않는다. 이는 처리 가능한 제출 확인창에서 멈추는 정상 흐름과 구분할 실제 오류다. 주 에이전트가 활성 상태라면 로그를 읽고 원인을 해결한다.
 
