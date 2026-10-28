@@ -60,7 +60,7 @@ def quota_error(output):
             continue
         if isinstance(event, dict) and (event.get('type') in ('error', 'turn.failed') or event.get('is_error') is True):
             messages.append(json.dumps(event, ensure_ascii=False))
-    return bool(re.search(r'usage_limit_reached|rate_limit_exceeded|insufficient_quota|rate_limit_error|you.ve (?:hit|reached) (?:your |the )?(?:usage )?limit|usage limit (?:reached|exceeded)|rate limit (?:reached|exceeded)|too many requests|\b429\b', '\n'.join(messages), re.IGNORECASE))
+    return bool(re.search(r'usage_limit_reached|rate_limit_exceeded|insufficient_quota|rate_limit_error|out of credits|you.ve (?:hit|reached) (?:your |the )?(?:usage )?limit|usage limit (?:reached|exceeded)|rate limit (?:reached|exceeded)|too many requests|\b429\b', '\n'.join(messages), re.IGNORECASE))
 
 
 def run_account(account, prompt, state):
@@ -74,7 +74,17 @@ def run_account(account, prompt, state):
     with (state / 'agent.log').open('a+') as log:
         log.seek(0, 2)
         offset = log.tell()
-        result = subprocess.run(command, input=prompt, text=True, env=env, cwd=Path(__file__).resolve().parent.parent, stdout=log, stderr=log, timeout=600)
+        with subprocess.Popen(command, stdin=subprocess.PIPE, text=True, env=env, cwd=Path(__file__).resolve().parent.parent, stdout=log, stderr=log) as process:
+            (state / 'agent.pid').write_text(str(process.pid))
+            try:
+                process.communicate(prompt, timeout=600)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+                raise
+            finally:
+                (state / 'agent.pid').unlink(missing_ok=True)
+            result = subprocess.CompletedProcess(command, process.returncode)
         log.flush()
         log.seek(offset)
         output = log.read()

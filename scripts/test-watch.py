@@ -13,6 +13,23 @@ import agent_accounts
 main = runpy.run_path(str(Path(__file__).with_name('watch.py')))['main']
 accounts_patch = patch.object(agent_accounts, 'discover_accounts', return_value=[('codex', Path('/fake/.codex'))])
 accounts_patch.start()
+class AgentProcess:
+    pid = 1234
+    def __init__(self, command, **kwargs):
+        self.command, self.kwargs = command, kwargs
+        self.kwargs.pop('stdin')
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        pass
+    def communicate(self, prompt=None, timeout=None):
+        if prompt is not None:
+            self.returncode = subprocess.run(self.command, input=prompt, timeout=timeout, **self.kwargs).returncode
+    def kill(self):
+        pass
+
+process_patch = patch('subprocess.Popen', side_effect=AgentProcess)
+process_patch.start()
 for extra, expected in [([], 'p1'), (['--current-lesson-only'], None), (['--playlist-page', 'p7'], 'p7')]:
     with tempfile.TemporaryDirectory() as state:
         state = Path(state)
@@ -138,3 +155,4 @@ with tempfile.TemporaryDirectory() as state:
     assert used == [profiles[0], profiles[1], profiles[0]], 'return to the primary account after the quota recheck interval'
 print('1 quota-reset resume check passed')
 accounts_patch.stop()
+process_patch.stop()

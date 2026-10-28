@@ -10,8 +10,10 @@ async function check(snapshots, expected, expectedClicks = [], extraConfig = {})
   let index = 0;
   globalThis.kehrdConfig = { space: 1, page: 'p2', state, ...extraConfig };
   if (extraConfig.runId) writeFileSync(join(state, 'watch-generation'), 'current-owner');
+  if (extraConfig.questionPending) writeFileSync(join(state, 'QUESTION'), 'periodic inspection');
   globalThis.advancePlaylist = async (task, page, config, write) => write('ADVANCED', '1');
   globalThis.settleTrainingDialogs = async () => ({ handled: 0, blocked: null });
+  globalThis.restoreDesktopActivity = async () => false;
   globalThis.taskSpace = async () => ({ page: () => ({
     info: async () => ({}),
     snapshot: async () => snapshots[Math.min(index++, snapshots.length - 1)],
@@ -36,4 +38,5 @@ await check([snapshot('01:00 / 01:00', '100').replace('text "02"', 'text "06"')]
 await check([snapshot('01:00 / 01:00', '100', 'radio "문제"').replace('text "02"', 'text "06"')], 'QUESTION', [], { playlistPage: 'p1' });
 await check(['button [ref=11]\n container\n text "웹 보안 정책에 따라 자동재생이 제한되었습니다."', 'text "차시 진도율 : "\n text "100%"'], 'DONE', ['@11']);
 await check([snapshot('01:00 / 01:00', '100')], null, [], { runId: 'previous-owner' });
-console.log('11 watcher behavior checks passed');
+await check([snapshot('00:02 / 01:00')], null, [], { questionPending: true });
+console.log('12 watcher behavior checks passed');

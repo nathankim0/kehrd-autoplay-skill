@@ -12,6 +12,7 @@ import sys
 import time
 import uuid
 import agent_accounts
+import check
 
 
 def ensure_awake():
@@ -53,10 +54,11 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             parser.exit(1, 'A watcher already owns this state directory.\n')
+        check.save_session(state, sys.argv[1:])
         ensure_awake()
         run_id = uuid.uuid4().hex
         (state / 'watch-generation').write_text(run_id)
-        source = '\n'.join(Path(__file__).with_name(name).read_text() for name in ('dialogs.mjs', 'playlist.mjs', 'watch.mjs'))
+        source = '\n'.join(Path(__file__).with_name(name).read_text() for name in ('dialogs.mjs', 'desktop.mjs', 'playlist.mjs', 'watch.mjs'))
         config = json.dumps({'space': args.space, 'page': args.page, 'playlistPage': args.playlist_page, 'state': str(state), 'runId': run_id})
         with (state / 'runner.log').open('a') as log:
             last_question = None
@@ -123,6 +125,8 @@ def main():
                 if result.returncode:
                     (state / 'QUESTION').write_text(f'ego-browser exited with code {result.returncode}; inspect runner.log')
             done = (state / 'DONE').exists()
+            if done:
+                check.remove_schedule(state)
             if done and shutil.which('osascript'):
                 message = '남은 교육을 모두 수료했습니다.' if args.playlist_page else '진도율 100%. 자동 진행을 종료했습니다.'
                 notice = subprocess.run(['osascript', '-e', f'display notification "{message}" with title "안전보건교육" sound name "Glass"'], stdout=log, stderr=log)

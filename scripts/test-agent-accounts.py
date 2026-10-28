@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from agent_accounts import account_environment, discover_accounts, quota_error, run_account
 
 with tempfile.TemporaryDirectory() as root:
@@ -27,6 +27,8 @@ quota_cases = [
     ({'is_error': True, 'result': "You've hit your limit · resets later"}, True),
     ({'type': 'error', 'message': 'rate_limit_exceeded'}, True),
     ({'type': 'error', 'message': 'insufficient_quota'}, True),
+    ({'type': 'error', 'message': 'Your workspace is out of credits. Contact your workspace admin.'}, True),
+    ({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'Your workspace is out of credits.'}}, False),
     ({'type': 'error', 'message': 'network disconnected'}, False),
     ({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'rate_limit_exceeded'}}, False),
     ({'is_error': False, 'result': 'rate_limit_error'}, False),
@@ -47,13 +49,34 @@ for provider in ('codex', 'claude'):
             assert kwargs['env'][variable] == str(profile)
             assert command[command.index('--model') + 1] == ('gpt-6.1-terra' if provider == 'codex' else 'sonnet')
             assert '--bare' not in command, 'Claude subscription login must remain available'
-            assert kwargs['timeout'] == 600
             kwargs['stdout'].write('{"is_error":true,"result":"rate_limit_error"}\n')
-            return subprocess.CompletedProcess(command, 1)
+            process = MagicMock(pid=1234, returncode=1)
+            process.__enter__.return_value = process
+            def communicate(prompt, timeout):
+                assert timeout == 600
+                assert (state / 'agent.pid').read_text() == '1234'
+            process.communicate.side_effect = communicate
+            return process
 
         before = dict(os.environ)
-        with patch('subprocess.run', side_effect=execute):
+        with patch('subprocess.Popen', side_effect=execute):
             result, limited = run_account((provider, profile), 'continue the same task', state)
         assert limited and result.returncode == 1
+        assert not (state / 'agent.pid').exists()
         assert dict(os.environ) == before, 'switch child environment only'
-print('15 account discovery, quota classification, and isolated-environment checks passed')
+with tempfile.TemporaryDirectory() as root:
+    state = Path(root)
+    process = MagicMock(pid=1234)
+    process.__enter__.return_value = process
+    process.communicate.side_effect = [subprocess.TimeoutExpired('codex', 600), (None, None)]
+    with patch('subprocess.Popen', return_value=process):
+        try:
+            run_account(('codex', state / 'profile'), 'continue', state)
+        except subprocess.TimeoutExpired:
+            pass
+        else:
+            raise AssertionError('propagate the timeout to stop the watcher')
+    process.kill.assert_called_once()
+    assert process.communicate.call_count == 2
+    assert not (state / 'agent.pid').exists()
+print('18 account discovery, quota classification, isolated-environment, and timeout checks passed')
