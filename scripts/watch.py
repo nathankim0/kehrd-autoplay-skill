@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 
 
 def ensure_awake():
@@ -52,8 +53,10 @@ def main():
         except BlockingIOError:
             parser.exit(1, 'A watcher already owns this state directory.\n')
         ensure_awake()
+        run_id = uuid.uuid4().hex
+        (state / 'watch-generation').write_text(run_id)
         source = '\n'.join(Path(__file__).with_name(name).read_text() for name in ('dialogs.mjs', 'playlist.mjs', 'watch.mjs'))
-        config = json.dumps({'space': args.space, 'page': args.page, 'playlistPage': args.playlist_page, 'state': str(state)})
+        config = json.dumps({'space': args.space, 'page': args.page, 'playlistPage': args.playlist_page, 'state': str(state), 'runId': run_id})
         with (state / 'runner.log').open('a') as log:
             last_question = None
             agent_attempts = 0

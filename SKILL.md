@@ -62,7 +62,7 @@ python3 scripts/watch.py --space 1 --page p2 \
 
 CDP 오류 등으로 워커가 종료되거나 문제를 남기면 현재 브라우저·제출 상태부터 다시 확인하도록 **한 번만 자동 재시도**한다. 두 번째 워커는 이전 답안을 재제출하지 않고 알림창·합격 여부·실제 재생 상태부터 확인한다. 사용자가 제어를 가져갔거나 워커가 `STOP`을 기록한 경우에는 재시도하지 않는다. CLI 실행 불가·10분 제한 초과는 `STOP`과 `agent.log`에 이유를 남기며, 불확실한 이전 워커와 겹쳐 실행하지 않는다. 무한 호출하지 않는다.
 
-대화 종료 후에도 유지할 감시기는 도구의 임시 터미널 세션에만 매달아두지 않는다. Python `subprocess.Popen(..., start_new_session=True, stdin=subprocess.DEVNULL, stdout=로그파일, stderr=subprocess.STDOUT)`으로 분리하고 실행 PID를 상태 폴더에 기록한다. 도구 호출이 끝난 후에도 해당 PID와 새 `progress.log` 기록이 살아 있는지 확인한다. 재시작 전에는 기존 PID·명령·상태 폴더와 잠금을 확인해 중복 실행을 피한다. 인증·사용자 제어 때문에 생긴 `STOP`을 자동 삭제하지 않는다.
+대화 종료 후에도 유지할 감시기는 도구의 임시 터미널 세션에만 매달아두지 않는다. Python `subprocess.Popen(..., start_new_session=True, stdin=subprocess.DEVNULL, stdout=로그파일, stderr=subprocess.STDOUT)`으로 분리하고 실행 PID를 상태 폴더에 기록한다. 도구 호출이 끝난 후에도 해당 PID와 새 `progress.log` 기록이 살아 있는지 확인한다. 재시작 전에는 기존 PID·명령·상태 폴더와 잠금을 확인해 중복 실행을 피한다. 브라우저 쪽 실행 라운드는 CLI 종료 뒤에도 잠시 살아 있을 수 있으므로 스크립트가 `watch-generation`의 현재 소유권을 매 반복마다 검사하고 이전 라운드는 조작을 멈춘다. 이 검사가 없던 이전 버전에서 전환할 때는 기존 최대 220초 라운드가 종료된 뒤 새 감시기를 시작한다. 인증·사용자 제어 때문에 생긴 `STOP`을 자동 삭제하지 않는다.
 
 사용자가 명시적으로 현재 차시만 요청한 경우에만 `--current-lesson-only`를 추가한다. 이 옵션은 `--playlist-page`와 함께 사용할 수 없다.
 

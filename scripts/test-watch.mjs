@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const source = readFileSync(new URL('./watch.mjs', import.meta.url), 'utf8');
@@ -9,6 +9,7 @@ async function check(snapshots, expected, expectedClicks = [], extraConfig = {})
   const clicks = [];
   let index = 0;
   globalThis.kehrdConfig = { space: 1, page: 'p2', state, ...extraConfig };
+  if (extraConfig.runId) writeFileSync(join(state, 'watch-generation'), 'current-owner');
   globalThis.advancePlaylist = async (task, page, config, write) => write('ADVANCED', '1');
   globalThis.settleTrainingDialogs = async () => ({ handled: 0, blocked: null });
   globalThis.taskSpace = async () => ({ page: () => ({
@@ -19,7 +20,8 @@ async function check(snapshots, expected, expectedClicks = [], extraConfig = {})
   }) });
   try {
     await new (Object.getPrototypeOf(async function(){}).constructor)(source)();
-    assert.ok(existsSync(join(state, expected)), expected);
+    if (expected) assert.ok(existsSync(join(state, expected)), expected);
+    else assert.equal(index, 0, 'an obsolete watcher must not read or operate the page');
     assert.deepEqual(clicks, expectedClicks);
   } finally { rmSync(state, { recursive: true, force: true }); }
 }
@@ -33,4 +35,5 @@ await check([snapshot('00:02 / 01:00', '100')], 'QUESTION', [], { playlistPage: 
 await check([snapshot('01:00 / 01:00', '100').replace('text "02"', 'text "06"')], 'ADVANCED', [], { playlistPage: 'p1' });
 await check([snapshot('01:00 / 01:00', '100', 'radio "문제"').replace('text "02"', 'text "06"')], 'QUESTION', [], { playlistPage: 'p1' });
 await check(['button [ref=11]\n container\n text "웹 보안 정책에 따라 자동재생이 제한되었습니다."', 'text "차시 진도율 : "\n text "100%"'], 'DONE', ['@11']);
-console.log('10 watcher behavior checks passed');
+await check([snapshot('01:00 / 01:00', '100')], null, [], { runId: 'previous-owner' });
+console.log('11 watcher behavior checks passed');

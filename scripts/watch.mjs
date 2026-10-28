@@ -10,6 +10,8 @@ let lastKey = '', stuck = 0, autoplayAttempts = 0;
 // shortcut: DOM-visible questions only; the agent inspects screenshots on stalled playback.
 for (let round = 0; round < 22; round++) {
   try {
+    // Browser-side rounds can outlive the CLI process that started them.
+    if (existsSync(`${config.state}/STOP`) || (config.runId && readFileSync(`${config.state}/watch-generation`, 'utf8') !== config.runId)) break;
     const dialogs = await settleTrainingDialogs(page);
     if (dialogs.blocked) { write('QUESTION', JSON.stringify(dialogs.blocked)); break; }
     if (dialogs.handled) { await page.waitForTimeout(10000); continue; }
