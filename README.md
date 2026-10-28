@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/cover.png" alt="KEHRD Autoplay — 한국이러닝인재개발원 아이콘과 영상 자동 진행·100% 완료를 표현한 대문 이미지" width="100%">
+
 # KEHRD Autoplay
 
 **교육 영상은 순서대로, 중간 문제는 에이전트와 함께.**
@@ -127,3 +129,5 @@ python3 -m py_compile scripts/watch.py
 | [scripts/test-watch.mjs](scripts/test-watch.mjs) | 모의 화면으로 감시 동작 검증 |
 
 플레이어의 화면 구조가 바뀌면 파싱과 문제 감지를 조정해야 합니다. 영상·캔버스 내부의 문제는 재생 정지 시 에이전트가 스크린샷으로 확인합니다.
+
+대문 이미지는 [KEHRD 공식 아이콘](https://kehrd.com/img/favicon.ico)을 참고해 ImageGen으로 제작했습니다. [생성 프롬프트](assets/cover-prompt.txt)
