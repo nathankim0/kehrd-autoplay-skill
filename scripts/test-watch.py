@@ -34,7 +34,7 @@ for extra, expected in [([], 'p1'), (['--current-lesson-only'], None), (['--play
         assert output.getvalue().count('ACTION_REQUIRED') == 1
 print('3 default-mode and continuous-handoff checks passed')
 
-for extra, resolves in [([], True), ([], False), (['--auto-agent'], True)]:
+for extra, outcome in [([], 'success'), ([], 'failure'), (['--auto-agent'], 'success'), ([], 'retry'), ([], 'stop')]:
     with tempfile.TemporaryDirectory() as state:
         state = Path(state)
         (state / 'QUESTION').write_text('assessment needs attention')
@@ -47,15 +47,33 @@ for extra, resolves in [([], True), ([], False), (['--auto-agent'], True)]:
                 assert '--ignore-user-config' in command
                 assert kwargs['timeout'] == 600
                 agents.append(command)
-                if resolves:
+                context = json.loads(kwargs['input'].split('Session: ')[-1])
+                assert context['attempt'] == len(agents)
+                if outcome == 'success' or (outcome == 'retry' and len(agents) == 2):
                     (state / 'QUESTION').unlink()
+                if outcome == 'stop':
+                    (state / 'STOP').write_text('user took control')
+                if outcome == 'retry' and len(agents) == 1:
+                    return subprocess.CompletedProcess(command, 1)
             else:
                 (state / 'DONE').write_text('completed')
             return subprocess.CompletedProcess(command, 0)
 
         argv = ['watch.py', '--space', '1', '--state-dir', str(state), *extra]
         with patch.object(sys, 'argv', argv), patch.object(sys, 'platform', 'linux'), patch('subprocess.run', side_effect=run), patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()):
-            assert main() == (0 if resolves else 2)
-        assert len(agents) == 1, 'do not repeatedly bill for an unresolved question'
-        assert (state / 'STOP').exists() is not resolves
-print('3 default Terra invocation, explicit enable, and failure-boundary checks passed')
+            assert main() == (2 if outcome in ('failure', 'stop') else 0)
+        assert len(agents) == (2 if outcome in ('failure', 'retry') else 1), 'allow only one recovery retry and respect explicit STOP'
+        assert (state / 'STOP').exists() == (outcome in ('failure', 'stop'))
+        if outcome == 'stop':
+            assert (state / 'STOP').read_text() == 'user took control'
+print('5 default Terra invocation, retry, and failure-boundary checks passed')
+
+with tempfile.TemporaryDirectory() as state:
+    state = Path(state)
+    (state / 'QUESTION').write_text('assessment needs attention')
+    argv = ['watch.py', '--space', '1', '--state-dir', str(state)]
+    with patch.object(sys, 'argv', argv), patch.object(sys, 'platform', 'linux'), patch('subprocess.run', side_effect=subprocess.TimeoutExpired('codex', 600)) as run, patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()):
+        assert main() == 2
+        assert run.call_count == 1, 'do not overlap an agent whose timeout state is uncertain'
+        assert (state / 'STOP').exists()
+print('1 agent-timeout boundary check passed')

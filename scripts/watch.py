@@ -56,6 +56,7 @@ def main():
         config = json.dumps({'space': args.space, 'page': args.page, 'playlistPage': args.playlist_page, 'state': str(state)})
         with (state / 'runner.log').open('a') as log:
             last_question = None
+            agent_attempts = 0
             while not any((state / name).exists() for name in ('DONE', 'STOP')):
                 if (state / 'QUESTION').exists():
                     try:
@@ -66,7 +67,8 @@ def main():
                         print(f'ACTION_REQUIRED: {state / "QUESTION"}', flush=True)
                         last_question = question
                     if args.auto_agent:
-                        context = json.dumps({'space': args.space, 'page': args.page, 'classroom': args.playlist_page, 'state': str(state)}, ensure_ascii=False)
+                        agent_attempts += 1
+                        context = json.dumps({'space': args.space, 'page': args.page, 'classroom': args.playlist_page, 'state': str(state), 'attempt': agent_attempts}, ensure_ascii=False)
                         prompt = Path(__file__).with_name('agent-task.md').read_text() + '\nSession: ' + context
                         command = ['codex', '--no-daemon', '-a', 'never', '-c', 'model_reasoning_effort="low"', 'exec', '--ignore-user-config', '--sandbox', 'danger-full-access', '--model', 'gpt-6.1-terra', '--skip-git-repo-check', '--cd', str(Path(__file__).resolve().parent.parent), '--output-last-message', str(state / 'agent-last-message.txt'), '-']
                         print('AGENT_START: gpt-6.1-terra', flush=True)
@@ -74,17 +76,27 @@ def main():
                             with (state / 'agent.log').open('a') as agent_log:
                                 agent = subprocess.run(command, input=prompt, text=True, stdout=agent_log, stderr=agent_log, timeout=600)
                             failure = f'Agent exited {agent.returncode}' if agent.returncode else None
-                        except (OSError, subprocess.TimeoutExpired) as error:
+                        except OSError as error:
+                            (state / 'STOP').write_text(str(error))
+                            failure = str(error)
+                        except subprocess.TimeoutExpired as error:
+                            (state / 'STOP').write_text(str(error))
                             failure = str(error)
                         if failure or (state / 'QUESTION').exists():
-                            (state / 'STOP').write_text(failure or 'Agent did not resolve QUESTION; inspect agent.log')
+                            if not (state / 'STOP').exists() and agent_attempts < 2:
+                                print('AGENT_RETRY: inspect current state before any resubmission', flush=True)
+                                continue
+                            if not (state / 'STOP').exists():
+                                (state / 'STOP').write_text(failure or 'Agent did not resolve QUESTION after recovery retry; inspect agent.log')
                             print(f'AGENT_FAILED: {state / "agent.log"}', flush=True)
                         else:
+                            agent_attempts = 0
                             print('AGENT_RESOLVED: resuming browser monitoring', flush=True)
                         continue
                     time.sleep(1)
                     continue
                 last_question = None
+                agent_attempts = 0
                 result = subprocess.run(['ego-browser', 'nodejs'], input=f'globalThis.kehrdConfig = {config};\n{source}', text=True, stdout=log, stderr=log)
                 if result.returncode:
                     (state / 'QUESTION').write_text(f'ego-browser exited with code {result.returncode}; inspect runner.log')
