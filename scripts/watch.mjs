@@ -6,14 +6,23 @@ const page = task.page(config.playlistPage && existsSync(playerFile) ? JSON.pars
 const write = (name, text) => writeFileSync(`${config.state}/${name}`, text);
 const log = text => appendFileSync(`${config.state}/progress.log`, `${new Date().toISOString()} ${text}\n`);
 const seconds = text => text.split(':').reduce((n, part) => n * 60 + Number(part), 0);
-let lastKey = '', stuck = 0;
+let lastKey = '', stuck = 0, autoplayAttempts = 0;
 // shortcut: DOM-visible questions only; the agent inspects screenshots on stalled playback.
 for (let round = 0; round < 22; round++) {
   try {
-    const info = await page.info();
-    if (info.dialog) { write('QUESTION', JSON.stringify(info.dialog)); break; }
+    const dialogs = await settleTrainingDialogs(page);
+    if (dialogs.blocked) { write('QUESTION', JSON.stringify(dialogs.blocked)); break; }
+    if (dialogs.handled) { await page.waitForTimeout(10000); continue; }
     const snap = await page.snapshot();
     write('latest.snapshot', snap);
+    const autoplay = snap.match(/button \[ref=(\d+)\]\s*\n\s*container\s*\n\s*text "웹 보안 정책에 따라 자동재생이 제한되었습니다\./);
+    if (autoplay) {
+      if (++autoplayAttempts > 2) { write('QUESTION', snap); break; }
+      await page.click(`@${autoplay[1]}`, { label: '자동재생 제한 안내 해제' });
+      await page.waitForTimeout(10000);
+      continue;
+    }
+    autoplayAttempts = 0;
     const progress = snap.match(/진도율\s*:\s*"\s*\n\s*text "([\d.]+)%"/);
     const percent = progress ? Number(progress[1]) : null;
     const time = snap.match(/"(\d{2}:\d{2}) \/ (\d{2}:\d{2})"/);

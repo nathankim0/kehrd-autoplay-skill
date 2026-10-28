@@ -32,7 +32,7 @@
 | macOS 알림 | 완료 또는 화면 확인이 필요할 때 시스템 알림 요청 |
 | 중복 실행 방지 | 같은 상태 폴더를 사용하는 감시기의 중복 실행 차단 |
 
-> **문제·평가 풀이는 에이전트가 담당합니다.** 감시 스크립트만 실행하면 문제나 평가 감지 시 종료됩니다. 답변하고 학습을 이어가려면 Codex 또는 Claude Code가 작업을 계속 실행하고 있어야 합니다.
+> **문제·평가 풀이는 에이전트가 담당합니다.** 감시기는 문제·평가가 나와도 종료하지 않습니다. 별도 에이전트 자동 실행을 허용하고 `--auto-agent`를 사용하면, 대화 종료 후에도 **GPT-6.1 Terra**를 필요할 때 호출해 제출 확인창·결과 알림·다음 영상 재생까지 처리합니다.
 
 ## 설치
 
@@ -86,7 +86,7 @@ flowchart LR
     G -->|전체 수료 확인| F[완료 알림 · 종료]
 ```
 
-감시기는 약 10초마다 화면을 확인합니다. 짧은 감시 라운드를 이어서 실행하며, 문제나 확인이 필요한 화면에서는 종료해 에이전트가 이어받도록 합니다.
+감시기는 약 10초마다 화면을 확인합니다. 짧은 감시 라운드를 이어서 실행하며, 문제나 확인이 필요한 화면에서는 `ACTION_REQUIRED`를 출력하고 에이전트가 처리하는 동안 대기합니다. 처리 완료 신호를 받으면 같은 프로세스가 자동 재개합니다. 중간 확인 알림으로 작업을 끝내지 않으며, 시스템 알림은 전체 완료 시에만 요청합니다.
 
 기본으로 다음 차시와 과정으로 이어갑니다. 현재 차시만 명시적으로 요청한 경우에만 100%에서 멈춥니다. 일반 법정교육은 100% 자동 수료 여부를 확인하고, 산업안전보건교육은 차시별 평가 합격 등 화면에 표시된 수료 조건까지 확인합니다. 사이트가 요구하는 순서와 학습시간을 지키며, 잠금을 우회하거나 진도 데이터를 직접 수정하지 않습니다.
 
@@ -114,19 +114,33 @@ caffeinate -dimsu python3 scripts/watch.py \
 
 기본 실행에서는 차시가 100%가 되고 마지막 영상까지 끝나면 플레이어를 종료하고 다음 미완료 차시를 엽니다. 모든 차시를 마치면 내강의실 목록에서 다음 미수료 과정을 찾습니다. 평가나 잠금 해제가 필요하면 에이전트가 처리한 뒤 이어가며, 목록 전체의 수료를 확인하면 종료합니다. 알 수 없는 수료 상태에서는 완료로 판단하지 않습니다.
 
+### 대화가 끝난 뒤에도 자동 처리
+
+별도 에이전트 실행을 허용한 경우 다음처럼 실행합니다. 로그인된 Codex CLI가 필요하며, CLI의 사용량이 적용됩니다.
+
+```bash
+caffeinate -dimsu python3 scripts/watch.py \
+  --space 1 --page p2 --state-dir /private/tmp/kehrd-all-session --auto-agent
+```
+
+영상 재생 중에는 모델을 호출하지 않습니다. 문제·평가·정지 화면이 감지될 때만 `gpt-6.1-terra`를 reasoning `low`로 호출하고, 복구를 마치면 감시기가 이어받습니다. 같은 문제를 해결하지 못하거나 실행 오류·10분 제한에 걸리면 사유를 기록하고 반복 호출하지 않습니다. `--auto-agent`를 쓰지 않으면 주 에이전트가 계속 실행되어 있어야 문제 풀이가 진행됩니다.
+
 | 상태 파일 | 의미 |
 | --- | --- |
 | `progress.log` | 페이지·재생 시간·진도율 기록 |
 | `latest.snapshot` | 가장 최근에 관찰한 화면 |
 | `runner.log` | 브라우저 실행 출력과 알림 오류 |
+| `agent.log` | 자동 호출한 Terra 에이전트의 실행 기록 |
+| `agent-last-message.txt` | 가장 최근 자동 에이전트의 처리 결과 |
 | `QUESTION` | 문제·정지·대화상자·오류 등 화면 확인 필요 |
+| `STOP` | 사용자 제어 전환 등으로 감시 중지 |
 | `DONE` | 단일 차시 100% 또는 전체 과정 수료 확인 화면 |
 | `player.json` | 전체 모드에서 현재 플레이어의 페이지 라벨 |
 | `playlist.json` | 전체 모드에서 확인한 과정별 수료 상태 |
 | `lesson-completed.snapshot` | 가장 최근에 100%를 달성한 차시 화면 |
 | `watch.lock` | 같은 상태 폴더의 중복 실행을 막는 잠금 |
 
-종료 코드 **0**은 완료, **2**는 화면 확인 필요, 그 외는 실행 오류입니다. `QUESTION`이 생기면 에이전트가 실제 화면을 확인하고 원인을 처리한 뒤 해당 파일을 삭제해 같은 명령을 다시 실행합니다. 평가 후 새 플레이어를 열었다면 `player.json`도 새 페이지 라벨로 갱신합니다. `DONE`이 있는 폴더에서는 새 교육을 시작하지 않습니다.
+종료 코드 **0**은 완료, **2**는 중지, 그 외는 실행 오류입니다. `QUESTION`에서는 프로세스가 종료되지 않습니다. 에이전트가 제출 확인창·결과 알림과 다음 영상 재생까지 확인한 뒤 해당 파일을 삭제하면 자동 재개합니다. 평가 후 새 플레이어를 열었다면 삭제 전에 `player.json`도 새 페이지 라벨로 갱신합니다. 감시기가 실행 중이면 새 감시기를 띄우지 않습니다. `DONE` 또는 `STOP`이 있는 폴더에서는 새 교육을 시작하지 않습니다.
 
 상태 파일에는 학습 화면의 개인정보가 포함될 수 있으므로 저장소 밖의 로컬 폴더에 보관하세요. 시스템 알림 표시는 macOS 알림 설정에 따라 달라질 수 있습니다.
 
@@ -135,6 +149,8 @@ caffeinate -dimsu python3 scripts/watch.py \
 ```bash
 node scripts/test-watch.mjs
 node scripts/test-playlist.mjs
+node scripts/test-dialogs.mjs
+python3 scripts/test-watch.py
 python3 -m py_compile scripts/watch.py
 ```
 
@@ -146,8 +162,12 @@ python3 -m py_compile scripts/watch.py
 | [scripts/watch.py](scripts/watch.py) | 감시 라운드 실행·잠금·종료 알림 |
 | [scripts/watch.mjs](scripts/watch.mjs) | ego-browser로 플레이어 상태 확인·페이지 이동 |
 | [scripts/playlist.mjs](scripts/playlist.mjs) | 다음 차시·과정 전환과 전체 수료 확인 |
+| [scripts/dialogs.mjs](scripts/dialogs.mjs) | 알려진 제출 확인창·결과 알림 연속 처리 |
+| [scripts/agent-task.md](scripts/agent-task.md) | 자동 에이전트가 한 번에 수행할 문제·평가 복구 범위 |
 | [scripts/test-watch.mjs](scripts/test-watch.mjs) | 모의 화면으로 감시 동작 검증 |
 | [scripts/test-playlist.mjs](scripts/test-playlist.mjs) | 모의 내강의실로 전체 진행 동작 검증 |
+| [scripts/test-dialogs.mjs](scripts/test-dialogs.mjs) | 제출 확인·정답 알림 연속 처리 검증 |
+| [scripts/test-watch.py](scripts/test-watch.py) | 문제 처리 중 감시 유지·자동 재개 검증 |
 
 플레이어의 화면 구조가 바뀌면 파싱과 문제 감지를 조정해야 합니다. 영상·캔버스 내부의 문제는 재생 정지 시 에이전트가 스크린샷으로 확인합니다.
 
