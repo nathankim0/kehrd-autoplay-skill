@@ -1,0 +1,4 @@
+interface:
+  display_name: "KEHRD 교육 자동 진행"
+  short_description: "KEHRD 영상 자동 진행, 중간 문제 풀이와 진도율 100% 완료 알림"
+  default_prompt: "$kehrd-autoplay로 열린 KEHRD 교육을 진행하고 중간 문제를 풀어줘. 진도율 100%에서 알림 후 멈춰."
