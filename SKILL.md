@@ -39,7 +39,7 @@ python3 scripts/watch.py --space 1 --page p2 \
   --state-dir /private/tmp/kehrd-all-session
 ```
 
-`p1`은 현재 과정의 상세 페이지, `p2`는 재생 중인 플레이어 예시다. 공간·페이지 값은 관찰해서 정한다. 전체 모드는 **차시 100% 및 마지막 페이지 재생 완료 → 학습종료 → 상세 페이지 새로고침 → 다음 미완료 차시 → 다음 미수료 과정**으로 이어간다. 진도율이 먼저 100%로 표시되어도 남은 영상을 끝까지 재생한다. 이미 수료한 과정은 건너뛰고, 남은 과정이 전부 수료로 확인될 때만 `DONE`을 기록하고 완료 알림 후 종료한다. 새 플레이어 라벨은 `player.json`에 저장되어 다음 라운드에서 이어진다.
+`p1`은 현재 과정의 상세 페이지, `p2`는 재생 중인 플레이어 예시다. 공간·페이지 값은 관찰해서 정한다. 전체 모드는 **차시 100% 및 마지막 페이지 재생 완료 → 학습종료 → 상세 페이지 새로고침 → 다음 미완료 차시 → 다음 미수료 과정 → 전체 수료증 PDF 저장 → 완료 팝업**으로 이어간다. 진도율이 먼저 100%로 표시되어도 남은 영상을 끝까지 재생한다. 이미 수료한 과정은 건너뛰고, 전체 수료와 수료증 저장까지 확인한 뒤에만 `DONE`을 기록한다. 새 플레이어 라벨은 `player.json`에 저장되어 다음 라운드에서 이어진다.
 
 사이트가 앞 과정/차시 완료 조건으로 잠근 버튼은 우회하지 않는다. 일반 법정교육은 100% 자동 수료 여부를 목록에서 확인한다. 산업안전보건교육은 **진도율 100% + 모든 차시별 평가 합격**이 필요할 수 있다. 화면의 실제 수료 조건을 읽고 재생 완료와 수료를 구분한다.
 
@@ -108,6 +108,10 @@ python3 scripts/check.py --state-dir /private/tmp/kehrd-all-session --install
 
 ## 완료와 검증
 
-100%는 타이머가 없어도 먼저 감지한다. 단일 차시는 완료 알림 후 종료하고, 전체 모드에서는 남은 과정으로 이어간다. `DONE` 파일의 snapshot으로 요청 범위의 완료 상태를 보고하고, 사용자가 결과를 볼 탭은 남긴다. 알림 실패는 `runner.log`에 기록되므로 알림이 실제 표시됐다고 단정하지 않는다.
+100%는 타이머가 없어도 먼저 감지한다. 단일 차시는 완료 알림 후 종료하고, 전체 모드에서는 남은 과정으로 이어간다. 전체 수료 후에는 **기본으로 각 과정의 공식 수료증도 저장한다.** `scripts/certificates.mjs`가 학습종료된 수업 → 수료증발급 → 수료증을 열어 A4 한 장 PDF로 `~/Downloads/KEHRD-수료증/<상태 폴더명>/`에 저장한다. 기존 파일은 덮어쓰지 않고 `certificates.json`에 과정별 경로를 기록하며, 재시도 때 정상 파일은 재사용한다. 개인별 PDF와 발급 내역은 공개 저장소에 넣지 않는다.
 
-개발 검증: `node scripts/test-watch.mjs`, `node scripts/test-playlist.mjs`, `node scripts/test-dialogs.mjs`, `node scripts/test-desktop.mjs`, `python3 scripts/test-watch.py`, `python3 scripts/test-awake.py`, `python3 scripts/test-agent-accounts.py`, `python3 scripts/test-check.py`.
+수료증 창은 `window.onload`에서 `window.print()`를 호출하므로 DOM snapshot·evaluate가 멈출 수 있다. 헬퍼는 공식 문서와 과정 번호를 확인하고 CDP `Page.printToPDF`로 원본 내용을 출력한다. 현재 1000×1400 서식은 A4·배율 0.79로 저장한다. 첫 출력이 시간 초과이면 문서 상태를 확인하고 한 번만 다시 출력한다. 실패하면 `QUESTION`으로 복구하고, PDF가 빠지거나 손상된 상태에서 `DONE`과 성공 알림을 남기지 않는다. 에이전트가 전체 수료를 직접 처리할 때도 같은 헬퍼와 Session의 `certificateDir`을 사용한다.
+
+감시기가 전체 과정의 PDF 파일을 검증한 다음 macOS에서 **저장 개수·폴더를 포함한 완료 팝업**을 별도 프로세스로 띄우고 종료한다. 팝업은 60초 뒤 닫히며 확인 버튼을 기다리느라 감시기가 남지 않는다. Linux에서는 `notify-send`가 있으면 데스크톱 알림, 없으면 터미널에 저장 위치를 출력한다. `DONE` snapshot과 `certificates.json`으로 결과와 저장 위치를 보고하고 수료 목록 탭은 남긴다. 팝업 실행 오류는 `runner.log`에 기록하며 실제 표시 여부를 단정하지 않는다.
+
+개발 검증: `node scripts/test-watch.mjs`, `node scripts/test-playlist.mjs`, `node scripts/test-dialogs.mjs`, `node scripts/test-desktop.mjs`, `node scripts/test-certificates.mjs`, `python3 scripts/test-watch.py`, `python3 scripts/test-awake.py`, `python3 scripts/test-agent-accounts.py`, `python3 scripts/test-check.py`, `python3 scripts/test-completion.py`.

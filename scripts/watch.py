@@ -13,6 +13,7 @@ import time
 import uuid
 import agent_accounts
 import check
+import completion
 
 
 def ensure_awake():
@@ -58,8 +59,9 @@ def main():
         ensure_awake()
         run_id = uuid.uuid4().hex
         (state / 'watch-generation').write_text(run_id)
-        source = '\n'.join(Path(__file__).with_name(name).read_text() for name in ('dialogs.mjs', 'desktop.mjs', 'playlist.mjs', 'watch.mjs'))
-        config = json.dumps({'space': args.space, 'page': args.page, 'playlistPage': args.playlist_page, 'state': str(state), 'runId': run_id})
+        source = '\n'.join(Path(__file__).with_name(name).read_text() for name in ('dialogs.mjs', 'desktop.mjs', 'certificates.mjs', 'playlist.mjs', 'watch.mjs'))
+        certificate_dir = str(Path.home() / 'Downloads' / 'KEHRD-수료증' / state.name)
+        config = json.dumps({'space': args.space, 'page': args.page, 'playlistPage': args.playlist_page, 'state': str(state), 'runId': run_id, 'certificateDir': certificate_dir})
         with (state / 'runner.log').open('a') as log:
             last_question = None
             agent_attempts = 0
@@ -67,7 +69,19 @@ def main():
             if args.auto_agent:
                 print('AGENT_ACCOUNTS: ' + ', '.join(f'{provider}:{profile.name}' for provider, profile in accounts), flush=True)
             limited_until = {}
-            while not any((state / name).exists() for name in ('DONE', 'STOP')):
+            manifest = None
+            while not (state / 'STOP').exists():
+                if (state / 'DONE').exists():
+                    if args.playlist_page:
+                        try:
+                            manifest = completion.verified_certificates(state)
+                        except (OSError, ValueError, KeyError, TypeError) as error:
+                            (state / 'DONE').unlink()
+                            (state / 'QUESTION').write_text(f'수료증 저장을 마쳐야 합니다: {error}')
+                        else:
+                            break
+                    else:
+                        break
                 if (state / 'QUESTION').exists():
                     try:
                         question = (state / 'QUESTION').read_text()
@@ -88,7 +102,7 @@ def main():
                         account_index = ready[0]
                         provider, profile = accounts[account_index]
                         agent_attempts += 1
-                        context = json.dumps({'space': args.space, 'page': args.page, 'classroom': args.playlist_page, 'state': str(state), 'attempt': agent_attempts}, ensure_ascii=False)
+                        context = json.dumps({'space': args.space, 'page': args.page, 'classroom': args.playlist_page, 'state': str(state), 'attempt': agent_attempts, 'certificateDir': certificate_dir}, ensure_ascii=False)
                         prompt = Path(__file__).with_name('agent-task.md').read_text() + '\nSession: ' + context
                         print(f'AGENT_START: {provider} {profile.name}', flush=True)
                         try:
@@ -124,11 +138,16 @@ def main():
                 result = subprocess.run(['ego-browser', 'nodejs'], input=f'globalThis.kehrdConfig = {config};\n{source}', text=True, stdout=log, stderr=log)
                 if result.returncode:
                     (state / 'QUESTION').write_text(f'ego-browser exited with code {result.returncode}; inspect runner.log')
-            done = (state / 'DONE').exists()
+            done = (state / 'DONE').exists() and not (state / 'STOP').exists()
             if done:
                 check.remove_schedule(state)
-            if done and shutil.which('osascript'):
-                message = '남은 교육을 모두 수료했습니다.' if args.playlist_page else '진도율 100%. 자동 진행을 종료했습니다.'
+            if done and manifest:
+                try:
+                    completion.notify(manifest, log)
+                except OSError as error:
+                    log.write(f'Completion popup failed: {error}\n')
+            elif done and shutil.which('osascript'):
+                message = '진도율 100%. 자동 진행을 종료했습니다.'
                 notice = subprocess.run(['osascript', '-e', f'display notification "{message}" with title "안전보건교육" sound name "Glass"'], stdout=log, stderr=log)
                 if notice.returncode:
                     log.write('Notification failed.\n')

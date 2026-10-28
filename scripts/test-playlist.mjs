@@ -7,6 +7,11 @@ const listUrl = 'https://kehrd.com/mypage/myclass.html';
 const detailUrl = 'https://kehrd.com/mypage/myclass_detail.html?no=example';
 async function check(evaluations, marker, expectedNavigation = []) {
   const writes = {}, navigation = [], clicks = [];
+  let exports = 0;
+  globalThis.saveCertificates = async () => {
+    assert.ok(!('DONE' in writes), 'do not complete before certificates are saved');
+    exports++;
+  };
   const classroom = {
     reload: async () => {},
     evaluate: async () => { assert.ok(evaluations.length, 'unexpected DOM read'); return evaluations.shift(); },
@@ -20,6 +25,7 @@ async function check(evaluations, marker, expectedNavigation = []) {
   assert.ok(marker in writes, `missing ${marker}`);
   assert.deepEqual(navigation, expectedNavigation);
   assert.equal(evaluations.length, 0);
+  assert.equal(exports, Number(marker === 'DONE'));
   if (marker === 'player.json') {
     assert.equal(JSON.parse(writes[marker]).page, 'p3');
     assert.deepEqual(clicks, ['a.detail_btn >> nth=0']);

@@ -11,6 +11,7 @@ import plistlib
 import re
 import subprocess
 import sys
+import completion
 
 
 def save_session(state, argv):
@@ -35,11 +36,24 @@ def remove_schedule(state):
         subprocess.run(['launchctl', 'bootout', f'gui/{os.getuid()}/{label}'], capture_output=True)
 
 
+def finished(state):
+    if not (state / 'DONE').exists() or (state / 'STOP').exists():
+        return False
+    config = json.loads((state / 'watch-session.json').read_text())
+    if '--current-lesson-only' in config['command']:
+        return True
+    try:
+        completion.verified_certificates(state)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return True
+
+
 def install(state):
     config = json.loads((state / 'watch-session.json').read_text())
     if '--no-auto-agent' in config['command']:
         raise ValueError('Periodic inspections require automatic agent mode')
-    if (state / 'DONE').exists():
+    if finished(state):
         remove_schedule(state)
         return
     label, path = schedule(state)
@@ -58,7 +72,7 @@ def install(state):
 
 
 def inspect(state):
-    if (state / 'DONE').exists():
+    if finished(state):
         remove_schedule(state)
         return 'DONE: periodic checks removed'
     with (state / 'watch.lock').open('a') as watch_lock:

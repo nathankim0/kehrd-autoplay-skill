@@ -6,7 +6,9 @@ KEHRD 감시기의 한 번의 문제·평가·정지 화면 복구를 맡는다.
 
 PageDialogOpenedError 또는 Runtime.evaluate 타임아웃이면 같은 info()/snapshot() 호출을 반복하지 않는다. 먼저 page.events()에서 Page.javascriptDialogOpening/Closed 이벤트를 확인하고 알려진 대화상자는 헬퍼로 처리한다. 이미 관찰한 정답 알림이 열린 것이 확실한데 이벤트를 다른 호출이 소비한 경우에만 page.cdp('Page.handleJavaScriptDialog', {accept:true}, {timeout:5000})로 닫는다. 이후 tabs()와 상세 페이지의 합격 상태부터 확인한다. attempt가 2이면 이전 실행의 제출이 성공했을 수 있으므로 현재 상태·agent.log를 먼저 확인하며 정답을 다시 제출하지 않는다. 예상하지 못한 메시지는 내용을 읽고 판단한다.
 
-상세 페이지의 합격 상태를 확인하고 다음 미완료 차시의 학습하기를 눌러 실제 플레이어를 연다. 자동재생 제한 안내가 있으면 관찰한 안내 버튼을 누르고 타이머 증가까지 확인한다. 이미 정상 재생 중이면 다시 열거나 재생을 토글하지 말고 그대로 사용한다. 새 플레이어 라벨을 상태 폴더의 player.json에 {"page":"실제 라벨"} 형식으로 저장한다. 전부 끝났다면 내강의실의 전체 수료 상태를 확인하고 DONE에 화면 기록을 저장한다.
+상세 페이지의 합격 상태를 확인하고 다음 미완료 차시의 학습하기를 눌러 실제 플레이어를 연다. 자동재생 제한 안내가 있으면 관찰한 안내 버튼을 누르고 타이머 증가까지 확인한다. 이미 정상 재생 중이면 다시 열거나 재생을 토글하지 말고 그대로 사용한다. 새 플레이어 라벨을 상태 폴더의 player.json에 {"page":"실제 라벨"} 형식으로 저장한다.
+
+전체 수료 상태이거나 QUESTION이 수료증 저장을 요청하면 플레이어를 다시 열지 않는다. 실제 내강의실에서 전체 수료를 확인하고 playlist.json을 최신 과정 목록으로 유지한다. scripts/certificates.mjs의 saveCertificates(classroomPage, Session, courses)를 절대 경로로 import해 호출한다. classroomPage는 Session.classroom의 페이지, courses는 playlist.json의 목록이다. Session의 state·certificateDir을 사용하며 기존 certificates.json의 정상 PDF는 재사용한다. 공식 수료증 팝업은 window.print() 때문에 snapshot/evaluate가 막힐 수 있으므로 헬퍼의 CDP 출력 경로를 사용한다. 모든 과정의 PDF 저장과 certificates.json을 확인한 뒤에만 DONE에 수료 화면을 기록한다. 저장 실패 시 이미 받은 파일을 지우지 않고 복구하며, 완료 팝업은 부모 감시기가 검증 후 담당한다.
 
 30분 정기 점검이면 현재 영상 타이머가 증가하는지 확인하고 정상 재생을 유지한다. PC 브라우저에서 'PC로 접속하면 학습활동을 할 수 있습니다.'가 나오면 scripts/desktop.mjs의 restoreDesktopActivity(page, snapshot)를 절대 경로로 import해 사용한다. 이 헬퍼는 잘못 전달된 capture=undefined 표시 옵션만 제거하며 진도·시간을 바꾸지 않는다. 이후 보이는 실제 퀴즈를 풀고 결과를 확인한다.
 

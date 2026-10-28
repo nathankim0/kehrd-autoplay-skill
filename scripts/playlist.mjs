@@ -43,7 +43,9 @@ async function advancePlaylist(task, player, config, write, log) {
   const next = courses.find(course => course.status === '미수료' && course.url);
   if (!next) {
     const snap = await classroom.snapshot({ scope: 'full_page' });
-    write(courses.some(course => course.status === '미수료') ? 'QUESTION' : 'DONE', snap);
+    if (courses.some(course => course.status === '미수료')) { write('QUESTION', snap); return; }
+    await saveCertificates(classroom, config, courses);
+    write('DONE', snap);
     return;
   }
   if (next.url === detailUrl) { write('QUESTION', '차시 재생은 완료했지만 과정이 미수료입니다. 평가와 수료조건을 확인해야 합니다.'); return; }

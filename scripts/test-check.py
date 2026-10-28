@@ -59,9 +59,20 @@ with tempfile.TemporaryDirectory() as root:
         assert job['StartInterval'] == 1800
         assert job['ProgramArguments'][-1] == str(state)
         (state / 'DONE').write_text('all completed')
-        with patch('subprocess.Popen') as launch:
+        with patch('subprocess.Popen', return_value=MagicMock(pid=5678)) as launch, patch.object(check.completion, 'verified_certificates', side_effect=ValueError('missing PDF')):
+            assert check.inspect(state).startswith('RESTARTED:')
+            launch.assert_called_once()
+            assert path.exists(), 'keep scheduled recovery until PDFs are saved'
+        with patch('subprocess.Popen') as launch, patch.object(check.completion, 'verified_certificates', return_value={'files': []}):
             assert check.inspect(state).startswith('DONE:')
             launch.assert_not_called()
         assert not path.exists()
         assert run.call_args.args[0] == ['launchctl', 'bootout', f'gui/{os.getuid()}/{label}']
-print('11 session, periodic inspection, restart, overlap, STOP, and completion checks passed')
+    config['command'].append('--current-lesson-only')
+    (state / 'watch-session.json').write_text(json.dumps(config))
+    with patch.object(check.completion, 'verified_certificates') as verify:
+        assert check.finished(state)
+        verify.assert_not_called()
+    (state / 'STOP').write_text('user took control')
+    assert not check.finished(state)
+print('14 session, periodic inspection, restart, overlap, STOP, and completion checks passed')

@@ -9,10 +9,15 @@ import sys
 import tempfile
 from unittest.mock import patch
 import agent_accounts
+import completion
 
 main = runpy.run_path(str(Path(__file__).with_name('watch.py')))['main']
 accounts_patch = patch.object(agent_accounts, 'discover_accounts', return_value=[('codex', Path('/fake/.codex'))])
 accounts_patch.start()
+certificates_patch = patch.object(completion, 'verified_certificates', return_value={'directory': '/fake/certificates', 'files': []})
+certificates_patch.start()
+notification_patch = patch.object(completion, 'notify')
+notification_patch.start()
 class AgentProcess:
     pid = 1234
     def __init__(self, command, **kwargs):
@@ -156,3 +161,36 @@ with tempfile.TemporaryDirectory() as state:
 print('1 quota-reset resume check passed')
 accounts_patch.stop()
 process_patch.stop()
+certificates_patch.stop()
+notification_patch.stop()
+
+with tempfile.TemporaryDirectory() as state:
+    state = Path(state)
+    (state / 'DONE').write_text('all courses completed, certificates still missing')
+    ready = {'directory': '/fake/certificates', 'files': []}
+
+    def recover(account, prompt, folder):
+        assert not (folder / 'DONE').exists()
+        assert (folder / 'QUESTION').exists()
+        assert 'certificateDir' in json.loads(prompt.split('Session: ')[-1])
+        (folder / 'QUESTION').unlink()
+        (folder / 'DONE').write_text('certificates saved')
+        return subprocess.CompletedProcess([], 0), False
+
+    argv = ['watch.py', '--space', '1', '--state-dir', str(state)]
+    with patch.object(sys, 'argv', argv), patch.object(sys, 'platform', 'linux'), patch.object(agent_accounts, 'discover_accounts', return_value=profiles[:1]), patch.object(agent_accounts, 'run_account', side_effect=recover) as agent, patch.object(completion, 'verified_certificates', side_effect=[ValueError('certificate missing'), ready]), patch.object(completion, 'notify') as notify, patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()):
+        assert main() == 0
+        agent.assert_called_once()
+        notify.assert_called_once()
+        assert notify.call_args.args[0] == ready
+print('1 certificate recovery before completion-popup check passed')
+
+with tempfile.TemporaryDirectory() as state:
+    state = Path(state)
+    (state / 'DONE').write_text('stale completion')
+    (state / 'STOP').write_text('user took control')
+    argv = ['watch.py', '--space', '1', '--state-dir', str(state), '--no-auto-agent']
+    with patch.object(sys, 'argv', argv), patch.object(sys, 'platform', 'linux'), patch.object(completion, 'notify') as notify, patch('shutil.which', return_value=None), contextlib.redirect_stdout(io.StringIO()):
+        assert main() == 2
+        notify.assert_not_called()
+print('1 explicit STOP before completion-popup check passed')
