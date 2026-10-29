@@ -20,7 +20,7 @@ description: Use ego-browser to advance all remaining KEHRD training lessons and
 
 **기본 동작은 자동 에이전트를 이용한 남은 교육 전체 진행이다.** “교육 진행해줘”만으로 남은 차시·과정과 필요한 문제·평가를 이어간다. “전부”라는 추가 문구나 자동 에이전트 활성화를 위한 재확인을 요구하지 않는다. 사용자가 특정 과정이나 현재 차시로 범위를 제한한 경우에만 그 범위를 따른다.
 
-SKILL.md가 있는 폴더에서 다음처럼 실행한다. 기본 `p1`은 현재 과정의 상세 페이지, `p2`는 플레이어다. 공간 ID와 페이지는 실제 관찰값으로 바꾸고 상태 폴더는 교육 세션별로 새로 정한다. `python3`, `ego-browser`와 로그인된 Codex CLI가 필요하다.
+SKILL.md가 있는 폴더에서 다음처럼 실행한다. 기본 `p1`은 현재 과정의 상세 페이지, `p2`는 플레이어다. 공간 ID와 페이지는 실제 관찰값으로 바꾸고 상태 폴더는 교육 세션별로 새로 정한다. `python3`, `ego-browser`와 로그인된 Codex CLI 또는 Claude Code CLI가 필요하다.
 
 ```bash
 python3 scripts/watch.py --space 1 --page p2 --state-dir /private/tmp/kehrd-session
